@@ -1,7 +1,7 @@
 ---
 title: "Introduction to MazamaSpatialPlots"
 author: "Rachel Carroll, Mazama Science"
-date: "February 3, 2020"
+date: "2022-11-07"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Introduction to MazamaSpatialPlots}
@@ -39,7 +39,7 @@ to create highly customized plots.
 ## Installation
 
 This package is designed to be used with [R](https://cran.r-project.org) 
-(>= 3.5) and [RStudio](https://www.rstudio.com) so make sure you have those 
+(>= 3.5) and [RStudio](https://posit.co) so make sure you have those 
 installed first.
 
 Users will want to install the **devtools** package to have access to the latest 
