@@ -3,19 +3,10 @@
 #' state level. Input consists of a dataframe with \code{stateCode} identifiers.
 #'
 #' Data to plot is specified with \code{parameter} argument. If \code{parameter}
-#' is mult-valued, mutliple plots will be generated and displayed in a
-#' "small multiples" matrix.
+#' is mult-valued, mutliple plots will be generated and displayed as "facets".
 #'
 #' The returned object is a \pkg{tmap} ggplot object which can be further
-#' modified with ggplot options.
-#'
-#' @details See \code{tmap::tm_fill()} for a more detailed description of
-#' the following parameters:
-#'
-#' \itemize{
-#' \item{\code{palette}}
-#' \item{\code{breaks}}
-#' }
+#' modified with tmap or ggplot options.
 #'
 #' @param data Dataframe containing values to plot. This dataframe
 #' must contain a column named \code{stateCode} with the 2-character state code.
@@ -23,16 +14,23 @@
 #' @param state_SFDF simple features data frame with US states. It's data
 #' \code{@slot} must contain a column named \code{stateCode} with the
 #' 2-character state code.
-#' @param palette Palette name or a vector of colors based on RColorBrewer.
 #' @param breaks Numeric vector of break points.
+#' @param palette A vector of colors or palette name from the \pkg{cols4all} package
+#' (see \code{\link[cols4all:c4a]{cols4all::c4a}}).
 #' @param conusOnly Logical specifying Continental US state codes. Ignored when
 #' the \code{stateCode} argument is specified.
 #' @param stateCode Vector of state codes to include on the map.
-#' @param projection Specified method to represent surface of Earth.
+#' @param projection Named projection, \emph{e.g.} "EPSG:4326" or "WGS84" or proj4string.
 #' @param stateBorderColor Color used for state borders.
 #' @param title Vector of text strings to use as individual plot titles.
 #' This must be the same length as 'parameter'.
-#' @param main.title Text string to use as an overall title for all plots.
+#' @param showLegend Logical specifying whether or not to show the legend.
+#' @param legendTitle Text string to use as the legend title.
+#' @param legendOrientation Orientation of the legend. Either "portrait" or "landscape".
+#' @param legendPosition A \emph{tm_pos} object generated with
+#' \code{\link[tmap:tm_pos_in]{tmap::tm_pos_in()}} or
+#' \code{\link[tmap:tm_pos_out]{tmap::tm_pos_out()}}.
+#'
 #' @return A ggplot object.
 #'
 #' @rdname stateMap
@@ -43,9 +41,8 @@
 #' stateMap(
 #'   data = example_US_stateObesity,
 #'   parameter = "obesityRate",
-#'   palette = "BuPu",
 #'   stateBorderColor = "white",
-#'   main.title = "2018 Obesity by State"
+#'   title = "2018 Obesity by State"
 #' )
 #'
 #' # Example of customization using tm_layout and breaks parameter
@@ -58,11 +55,14 @@
 #'   tmap::tm_layout(
 #'     frame = TRUE,
 #'     frame.double.line = TRUE,
-#'     main.title = 'Obesity Rate by State',
-#'     main.title.position = c("center", "top"),
-#'     fontfamily = "serif",
 #'     bg.color = "grey85",
 #'     inner.margins  = .05
+#'   ) +
+#'   tmap::tm_title(
+#'     text = 'Obesity Rate by State',
+#'     size = 1.5,
+#'     position = tmap::tm_pos_in("center", "top"),
+#'     fontfamily = "serif"
 #'   )
 #'
 #' # Example using stateCode
@@ -71,16 +71,20 @@
 #'   parameter = "obesityRate",
 #'   stateCode = c('ME', 'NH', 'VT', 'MA', 'RI', 'CT'),
 #'   stateBorderColor = 'black',
-#'   title = 'Obesity Rates in New England'
+#'   legendPosition = tmap::tm_pos_in("right", "bottom")
 #' ) +
 #'   tmap::tm_layout(
 #'     frame = TRUE,
 #'     frame.double.line = TRUE,
-#'     title.size = 1.2,
-#'     title.fontface = 2,
-#'     fontfamily = "serif",
 #'     bg.color = "grey85",
 #'     inner.margins  = .08
+#'   ) +
+#'   tmap::tm_title(
+#'     text = 'Obesity Rates in New England',
+#'     size = 1.5,
+#'     fontface = 2,
+#'     fontfamily = "serif",
+#'     position = tmap::tm_pos_in("center", "top")
 #'   )
 #' @export
 #' @importFrom sf st_crs st_bbox
@@ -89,17 +93,20 @@
 #'
 
 stateMap <- function(
-  data = NULL,
-  parameter = NULL,
-  state_SFDF = "USCensusStates_02",
-  palette = "YlOrBr",
-  breaks = NULL,
-  conusOnly = TRUE,
-  stateCode = NULL,
-  projection = NULL,
-  stateBorderColor = "gray50",
-  title = NULL,
-  main.title = NULL
+    data = NULL,
+    parameter = NULL,
+    state_SFDF = "USCensusStates_02",
+    breaks = NULL,
+    palette = "brewer.blues",
+    conusOnly = TRUE,
+    stateCode = NULL,
+    projection = NULL,
+    stateBorderColor = "gray50",
+    title = NULL,
+    showLegend = TRUE,
+    legendTitle = NULL,
+    legendOrientation = "portrait",
+    legendPosition = NULL
 ) {
 
   # ----- Validate parameters --------------------------------------------------
@@ -129,8 +136,8 @@ stateMap <- function(
     } else {
       stop(paste0("Missing fields in 'data': ",
                   paste0(missingFields, collapse = ", ")))
-      }
     }
+  }
 
   # * Validate 'SFDF' -----
 
@@ -195,6 +202,13 @@ stateMap <- function(
   # Validate length of 'parameter' and 'title'
   if ( !is.null(title) && length(parameter) != length(title) )
     stop("The lengths of 'parameter' and 'title' must be equal.")
+
+  # Validate legendPosition
+  if ( !is.null(legendPosition) ) {
+    if ( !"tm_pos" %in% class(legendPosition) ) {
+      stop("Parameter 'legendPosition' must be generated with tmap::tmap_pos_in() or tmap::tmap_pos_out()")
+    }
+  }
 
   # ----- Subset the SFDF ------------------------------------------------------
 
@@ -262,6 +276,7 @@ stateMap <- function(
 
   } else {
 
+    # TODO:  When do we use the passed in projection?
     # Use projection found in SFDF
 
   }
@@ -284,24 +299,28 @@ stateMap <- function(
   # ----- Create plot ----------------------------------------------------------
 
   gg <-
-    tmap::tm_shape(state_SFDF, projection = projection) +
+    tmap::tm_shape(state_SFDF, crs = projection) +
     tmap::tm_fill(
-      col = parameter,
-      palette = palette,
-      breaks = breaks
+      fill = parameter,
+      fill.scale = tmap::tm_scale_intervals(
+        breaks = breaks,
+        values = palette
+      ),
+      fill.legend = tmap::tm_legend(
+        title = legendTitle,
+        show = showLegend,
+        orientation = legendOrientation,
+        position = legendPosition
+      )
     ) +
-    tmap::tm_shape(state_SFDF, projection = projection) +
     tmap::tm_polygons(
-      alpha = 0,
-      border.col = stateBorderColor
+      fill_alpha = 0,
+      col = stateBorderColor
     ) +
-    tmap::tm_layout(
-      main.title = main.title,
-      title = title,
-      main.title.size = .9,
-      main.title.position = c("center", "top"),
-      title.position = c("center", 'top'),
-      frame = FALSE
+    tmap::tm_title(
+      text = title,
+      size = 0.9,
+      position = tmap::tm_pos_out("center", "top")
     )
 
   # ----- Return ---------------------------------------------------------------
@@ -324,13 +343,17 @@ if ( FALSE ) {
   # Set up required variables so we can walk through the code
   data = example_US_stateObesity
   parameter = "obesityRate"
-  palette = "YlOrBr"
   breaks = NULL
+  palette = "brewer.blues"
   conusOnly = TRUE
   stateCode = NULL
   projection = NULL
   stateBorderColor = "white"
-  title <- "Obesity Rate by state"
+  title = "Obesity Rate by state"
+  showLegend = TRUE
+  legendTitle = NULL
+  legendOrientation = "portrait"
+  legendPosition = NULL
 
   # Run the code above and then start walking through the lines of code in the
   # function.
@@ -341,13 +364,14 @@ if ( FALSE ) {
     data = data,
     parameter = parameter,
     state_SFDF = state_SFDF,
-    palette = palette,
     breaks = breaks,
+    palette = palette,
     conusOnly = conusOnly,
     stateCode = stateCode,
     projection = projection,
     stateBorderColor = stateBorderColor,
-    title = title
+    title = title,
+    legendPosition = legendPosition
   )
 
   ##############################################################################
@@ -365,7 +389,6 @@ if ( FALSE ) {
     data,
     state_SFDF = state_SFDF,
     parameter = "obesityRate",
-    palette = "BuPu",
     stateBorderColor = "black"
   )
 
@@ -375,14 +398,16 @@ if ( FALSE ) {
     data,
     state_SFDF = state_SFDF,
     parameter = "obesityRate",
-    palette = "BuPu",
-    stateBorderColor = "black"
+    stateBorderColor = "black",
+    legendPosition = tmap::tm_pos_in("left", "bottom")
   ) +
     tmap::tm_layout(
-      title = "Obesity rate by state",
-      title.size = 2,
-      title.fontface = "bold",
       frame = TRUE
+    ) +
+    tmap::tm_title(
+      text = "Obesity rate by state",
+      size = 2,
+      fontface = "bold"
     )
 
   # Very nice!
@@ -399,11 +424,10 @@ if ( FALSE ) {
     tmap::tm_style(
       'classic'
     ) +
-    tmap::tm_layout(
-      title = 'Obesity Rate by State',
-      title.position = c("center", "top"),
-      title.size = 1.2,
-      inner.margins  = .08
+    tmap::tm_title(
+      text = 'Obesity Rate by State',
+      position = tmap::tm_pos_in("center", "top"),
+      size = 1.2
     ) +
     tmap::tm_compass()
 
@@ -411,17 +435,15 @@ if ( FALSE ) {
   stateMap(
     data = example_US_stateObesity,
     parameter = "obesityRate",
-    palette = "BuPu",
     breaks = seq(20,40,4)
   ) +
     tmap::tm_style(
       'cobalt'
     ) +
-    tmap::tm_layout(
-      title = 'Obesity Rate by State',
-      title.position = c("center", "top"),
-      title.size = 1.2,
-      inner.margins  = .08
+    tmap::tm_title(
+      text = 'Obesity Rate by State',
+      position = tmap::tm_pos_in("center", "top"),
+      size = 1.2
     ) +
     tmap::tm_compass()
 
@@ -435,16 +457,14 @@ if ( FALSE ) {
     breaks = seq(20,38,3), #increasing color detail
     conusOnly = FALSE ,
     stateBorderColor = 'black',
+    legendPosition = tmap::tm_pos_in("right", "top")
   ) +
-    tmap::tm_layout(
-      frame = TRUE,
-      main.title = 'Obesity Rates in U.S. States and Territories',
-      main.title.position = c("center", "top"),
-      title.fontface = 2,
-      fontfamily = "serif",
-      bg.color = "grey85",
-      inner.margins  = .05,
-      legend.position = c('right', 'top')
+    tmap::tm_title(
+      text = 'Obesity Rates in U.S. States and Territories',
+      position = tmap::tm_pos_out("center", "top"),
+      size = 2,
+      fontface = 2,
+      fontfamily = "serif"
     )
 
 }
